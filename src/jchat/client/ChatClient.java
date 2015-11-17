@@ -1,3 +1,5 @@
+package jchat.client;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -43,16 +45,16 @@ public class ChatClient {
         chatArea.setEditable(false);
         chatBox.setEditable(true);
         chatBox.addActionListener(new ActionListener() {
-		@Override
-		public void actionPerformed(ActionEvent e) {
-		    try {
-			newMessage(chatBox.getText());
-		    } catch (IOException ex) {
-		    } finally {
-			chatBox.setText("");
-		    }
-		}
-	    });
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    newMessage(chatBox.getText());
+                } catch (IOException ex) {
+                } finally {
+                   chatBox.setText("");
+                }
+            }
+        });
         // --- Fim da inicialização da interface gráfica
 
         // Se for necessário adicionar código de inicialização ao
