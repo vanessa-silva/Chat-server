@@ -2,9 +2,15 @@ package jchat.client;
 
 import java.io.*;
 import java.net.*;
+import java.nio.CharBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
 import java.util.*;
 import java.awt.*;
 import java.awt.event.*;
+
 import javax.swing.*;
 
 
@@ -18,10 +24,14 @@ public class ChatClient {
 
     // Se for necessário adicionar variáveis ao objecto ChatClient, devem
     // ser colocadas aqui
-
-
-
+    private SocketChannel clientSocket;
+    private BufferedReader inputReader;
     
+    // Decoder and enconder for transmitting text
+    private final Charset charset = Charset.forName("UTF8");
+    private final CharsetDecoder decoder = charset.newDecoder();
+    private final CharsetEncoder encoder = charset.newEncoder();
+          
     // Método a usar para acrescentar uma string à caixa de texto
     // * NÃO MODIFICAR *
     public void printMessage(final String message) {
@@ -59,9 +69,12 @@ public class ChatClient {
 
         // Se for necessário adicionar código de inicialização ao
         // construtor, deve ser colocado aqui
-
-
-
+        try {
+            clientSocket = SocketChannel.open();
+            clientSocket.configureBlocking(true);
+            clientSocket.connect(new InetSocketAddress(server, port));
+          } catch (IOException ex) {
+          }
     }
 
 
@@ -69,17 +82,44 @@ public class ChatClient {
     // na caixa de entrada
     public void newMessage(String message) throws IOException {
         // PREENCHER AQUI com código que envia a mensagem ao servidor
-
-
-
+    	clientSocket.write(encoder.encode(CharBuffer.wrap(message+"\n")));
     }
 
     
     // Método principal do objecto
     public void run() throws IOException {
         // PREENCHER AQUI
+    	try {
+    	      while (!clientSocket.finishConnect()) {
+    	      }
+    	    } catch (Exception ce) {
+    	      System.err.println("Unable to establish a connection with the server...");
+    	      System.exit(0);
+    	      return;
+    	    }
 
+    	    inputReader = new BufferedReader(new InputStreamReader(clientSocket.socket().getInputStream()));
+    	    
+    	    // Listen loop
+    	    while (true) {
+    	      String message = inputReader.readLine();
+    	      
+    	      if (message == null) {
+    	        break;
+    	      }
 
+    	      message = message.trim();
+    	      message = message.concat("\n");
+    	      printMessage(message);
+    	    }
+
+    	    clientSocket.close();
+
+    	    try {
+    	      // To prevent client from closing right away
+    	      Thread.sleep(10);
+    	    } catch (InterruptedException ie) {
+    	    }
 
     }
     

@@ -6,18 +6,39 @@ import java.nio.*;
 import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
+import java.util.regex.Pattern;
+
+import jchat.server.User.State;
 
 class User {
-	static HashMap<SocketChannel, User> userMap = new HashMap<SocketChannel, User>(); 
+	enum State {INSIDE, OUTSIDE, INIT};
+
 	SocketChannel sc;
+	State state;
+	String curCommand;
 
 	User(SocketChannel sc) {
 		this.sc = sc;
-		userMap.put(sc, this);
+		state = State.INIT;
+		curCommand = "";
+	}
+	
+	void error() {
+		try {
+			sc.write(ByteBuffer.wrap("ERROR\n".getBytes()));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	void exitRoom() {
+		
 	}
 }
 
 public class Server
+
 {
   // A pre-allocated buffer for the received data
   static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
@@ -25,7 +46,17 @@ public class Server
   // Decoder for incoming text -- assume UTF-8
   static private final Charset charset = Charset.forName("UTF8");
   static private final CharsetDecoder decoder = charset.newDecoder();
+  static private final CharsetEncoder encoder = charset.newEncoder();
+  
+  static HashMap<SocketChannel, User> userMap = new HashMap<SocketChannel, User>();
+  static HashMap<String, User> nameMap = new HashMap<String, User>();
 
+  //Regex for command process
+  static private final String nickRegex = "nick .+";
+  static private final String joinRegex = "join .+";
+  static private final String leaveRegex = "leave.*";
+  static private final String byeRegex = "bye.*";
+  static private final String privateRegex = "priv .+ .+";
 
   static public void main( String args[] ) throws Exception {
     // Parse port from command line
@@ -89,6 +120,7 @@ public class Server
             
             // Map it to a user
             User user = new User(sc);
+            userMap.put(sc, user);
 
           } else if ((key.readyOps() & SelectionKey.OP_READ) ==
         		  SelectionKey.OP_READ) {
@@ -105,8 +137,13 @@ public class Server
         		  // If the connection is dead, remove it from the selector
         		  // and close it
         		  if (!ok) {
-        			  key.cancel();
-        			  User.userMap.remove(sc);
+        			  key.cancel();      
+        			  
+            		  //Delete user
+        			  userMap.remove(sc);
+            		  if (userMap.containsKey(sc))
+            			  userMap.get(sc).exitRoom();
+            		  
         			  Socket s = null;
         			  try {
         				  s = sc.socket();
@@ -121,7 +158,11 @@ public class Server
 
         		  // On exception, remove this channel from the selector
         		  key.cancel();
-        		  User.userMap.remove(sc);
+        		  
+        		  //Delete user
+        		  if (userMap.containsKey(sc))
+        			  userMap.get(sc).exitRoom();
+        		  userMap.remove(sc);
 
         		  try {
         			  sc.close();
@@ -140,30 +181,111 @@ public class Server
     }
   }
 
-
   // Just read the message from the socket and send it to stdout
   static private boolean processInput( SocketChannel sc) throws IOException {
+	User user = userMap.get(sc);
+	buffer.clear();
+	
     // Read the message to the buffer
-    buffer.clear();
-    sc.read( buffer );
-    
-    buffer.flip();
-    
-    // If no data, close the connection
-    if (buffer.limit()==0) {
-      return false;
-    }
-
-    // Decode and print the message to stdout
-    String message = decoder.decode(buffer).toString();
-    buffer.rewind();
-    for (SocketChannel cur : User.userMap.keySet())
-    	if (!cur.equals(sc))
-    		cur.write(buffer);    
-    //sc.write(buffer);    
-    
-    //System.out.print( message );    
-
+	sc.read(buffer);
+	
+	buffer.flip();
+	
+	if (buffer.limit()==0) {		
+    	return false;
+	}
+	
+	// Decode and print the message to stdout
+	String message = decoder.decode(buffer).toString();	
+	boolean first = true;
+	for (String msg : message.split("\n")) {
+		if (first)
+			user.curCommand = user.curCommand.concat(msg);
+		else {
+			handleMessage(user, user.curCommand);
+			user.curCommand = msg;
+		}
+		first = false;
+	}
+	if (message.endsWith("\n")) {
+		handleMessage(user, user.curCommand);
+		user.curCommand = "";
+	}
     return true;
   }
+ 
+  static void handleMessage(User user, String msg) {	  	 
+	  if (user.state == User.State.INIT && msg.startsWith("/")
+			  && Pattern.matches(nickRegex, msg.substring(1))
+			  && nameMap.containsKey(msg.split(" ")[1])) {
+		  user.error();
+	  }
+	  else if (user.state == User.State.INIT && msg.startsWith("/")
+			  && Pattern.matches(nickRegex, msg.substring(1))
+			  && !nameMap.containsKey(msg.split(" ")[1])) {
+		  String nick = msg.split(" ")[1];
+		  //remove username from nameMap and add nick
+		  //return OK
+	  }
+	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
+			  && Pattern.matches(joinRegex, msg.substring(1))) {
+		  String roomName = msg.split(" ")[1];
+		  //join room
+		  //set state INSIDE
+		  //send OK to user
+		  //send JOINED nick to other users in room
+	  }
+	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
+			  && Pattern.matches(nickRegex, msg.substring(1))
+			  && nameMap.containsKey(msg.split(" ")[1])) {
+		  //return ERROR
+	  }
+	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
+			  && Pattern.matches(nickRegex, msg.substring(1))
+			  && !nameMap.containsKey(msg.split(" ")[1])) {
+		  String nick = msg.split(" ")[1];
+		  //remove username from nameMap and add nick
+		  //return OK
+		  
+	  }
+	  else if (user.state == User.State.INSIDE 
+			  && (msg.startsWith("//") || !msg.startsWith("/"))) {
+		  String message = msg.substring(1);
+		  //send MESSAGE name msg to all users in room
+	  }
+	  else if (user.state == User.State.INSIDE 
+			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
+			  && nameMap.containsKey(msg.split(" ")[1])) {
+		  String nick = msg.split(" ")[1];
+		  //ERROR
+	  }
+	  else if (user.state == User.State.INSIDE 
+			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
+			  && !nameMap.containsKey(msg.split(" ")[1])) {
+		  String nick = msg.split(" ")[1];
+		  //remove username from nameMap and add nick
+		  //return OK
+		  //send NEWNICK nome_antigo nome to all
+	  }
+	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
+			  && Pattern.matches(joinRegex, msg.substring(1))) {
+		  String room = msg.split(" ")[1];
+		  //send JOINED nome to all users in room
+		  //send LEFT nome to all users in old room
+	  }
+	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
+			  && Pattern.matches(leaveRegex, msg.substring(1))) {		  
+		  user.state = User.State.OUTSIDE;
+		  //send LEFT nome to all users in old room
+	  }
+	  else if (msg.startsWith("/") && Pattern.matches(byeRegex, msg.substring(1))) {		  
+		  //remove user from hashtables?
+		  //send LEFT nome to all users in old room
+		  //send BYE to user
+	  }
+	  else {		  
+		  user.error();
+	  }
+	  System.out.println("MESSAGE: " + msg);
+  }   
 }
