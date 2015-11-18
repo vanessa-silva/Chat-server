@@ -22,6 +22,10 @@ class User {
 		state = State.INIT;
 		curCommand = "";
 	}
+
+    void setState(State state){
+	this.state = state;
+    }
 	
 	void error() {
 		try {
@@ -37,11 +41,9 @@ class User {
 	}
 }
 
-public class Server
-
-{
-  // A pre-allocated buffer for the received data
-  static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+public class Server {
+    // A pre-allocated buffer for the received data
+    static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
 
   // Decoder for incoming text -- assume UTF-8
   static private final Charset charset = Charset.forName("UTF8");
@@ -60,28 +62,28 @@ public class Server
 
   static public void main( String args[] ) throws Exception {
     // Parse port from command line
-    int port = Integer.parseInt( args[0] );
+    int port = Integer.parseInt(args[0]);
     
     try {
       // Instead of creating a ServerSocket, create a ServerSocketChannel
       ServerSocketChannel ssc = ServerSocketChannel.open();
 
       // Set it to non-blocking, so we can use select
-      ssc.configureBlocking( false );
+      ssc.configureBlocking(false);
 
       // Get the Socket connected to this channel, and bind it to the
       // listening port
       ServerSocket ss = ssc.socket();
-      InetSocketAddress isa = new InetSocketAddress( port );
-      ss.bind( isa );
+      InetSocketAddress isa = new InetSocketAddress(port);
+      ss.bind(isa);
 
       // Create a new Selector for selecting
       Selector selector = Selector.open();
 
       // Register the ServerSocketChannel, so we can listen for incoming
       // connections
-      ssc.register( selector, SelectionKey.OP_ACCEPT );
-      System.out.println( "Listening on port "+port );
+      ssc.register(selector, SelectionKey.OP_ACCEPT);
+      System.out.println("Listening on port "+port);
 
       while (true) {
         // See if we've had any activity -- either an incoming connection,
@@ -102,28 +104,26 @@ public class Server
           SelectionKey key = it.next();
 
           // What kind of activity is it?
-          if ((key.readyOps() & SelectionKey.OP_ACCEPT) ==
-            SelectionKey.OP_ACCEPT) {
+          if ((key.readyOps() & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT) {
 
             // It's an incoming connection.  Register this socket with
             // the Selector so we can listen for input on it
             Socket s = ss.accept();
-            System.out.println( "Got connection from "+s );
+            System.out.println("Got connection from "+s);
 
             // Make sure to make it non-blocking, so we can use a selector
             // on it.
             SocketChannel sc = s.getChannel();
-            sc.configureBlocking( false );
+            sc.configureBlocking(false);
 
             // Register it with the selector, for reading
-            sc.register( selector, SelectionKey.OP_READ );
+            sc.register(selector, SelectionKey.OP_READ);
             
             // Map it to a user
             User user = new User(sc);
             userMap.put(sc, user);
 
-          } else if ((key.readyOps() & SelectionKey.OP_READ) ==
-        		  SelectionKey.OP_READ) {
+          } else if ((key.readyOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
 
         	  SocketChannel sc = null;
 
@@ -182,7 +182,7 @@ public class Server
   }
 
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput( SocketChannel sc) throws IOException {
+  static private boolean processInput(SocketChannel sc) throws IOException {
 	User user = userMap.get(sc);
 	buffer.clear();
 	
@@ -196,7 +196,7 @@ public class Server
 	}
 	
 	// Decode and print the message to stdout
-	String message = decoder.decode(buffer).toString();	
+	String message = decoder.decode(buffer).toString();
 	boolean first = true;
 	for (String msg : message.split("\n")) {
 		if (first)
@@ -224,14 +224,16 @@ public class Server
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap and add nick
+		  //remove username from nameMap
+		  nameMap.put(nick, user);
+		  user.setState(User.State.OUTSIDE);
 		  //return OK
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(joinRegex, msg.substring(1))) {
 		  String roomName = msg.split(" ")[1];
 		  //join room
-		  //set state INSIDE
+		  user.setState(User.State.INSIDE);
 		  //send OK to user
 		  //send JOINED nick to other users in room
 	  }
@@ -244,9 +246,9 @@ public class Server
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap and add nick
+		  //remove username from nameMap
+		  nameMap.put(nick, user);
 		  //return OK
-		  
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && (msg.startsWith("//") || !msg.startsWith("/"))) {
@@ -263,7 +265,8 @@ public class Server
 			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap and add nick
+		  //remove username from nameMap
+		  nameMap.put(nick, user);
 		  //return OK
 		  //send NEWNICK nome_antigo nome to all
 	  }
@@ -275,7 +278,7 @@ public class Server
 	  }
 	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
 			  && Pattern.matches(leaveRegex, msg.substring(1))) {		  
-		  user.state = User.State.OUTSIDE;
+		  user.setState(User.State.OUTSIDE);
 		  //send LEFT nome to all users in old room
 	  }
 	  else if (msg.startsWith("/") && Pattern.matches(byeRegex, msg.substring(1))) {		  
@@ -283,6 +286,7 @@ public class Server
 		  //send LEFT nome to all users in old room
 		  //send BYE to user
 	  }
+	  // caso para: user.state == User.State.INSIDE && user -> close connection ?
 	  else {		  
 		  user.error();
 	  }
