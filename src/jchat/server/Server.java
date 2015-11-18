@@ -8,6 +8,7 @@ import java.nio.charset.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import jchat.message.ChatMessage;
 import jchat.server.User.State;
 
 class User {
@@ -16,6 +17,7 @@ class User {
 	SocketChannel sc;
 	State state;
 	String curCommand;
+	Room room;
 
 	User(SocketChannel sc) {
 		this.sc = sc;
@@ -24,7 +26,11 @@ class User {
 	}
 
     void setState(State state){
-	this.state = state;
+    	this.state = state;
+    }
+    
+    void setRoom(Room room) {
+    	this.room = room;
     }
 	
 	void error() {
@@ -41,6 +47,33 @@ class User {
 	}
 }
 
+class Room {
+	Set<User> usersRoom;
+	String name;
+	
+	Room(String name) {
+		this.name = name;
+		usersRoom = new TreeSet<User>();
+	}
+	
+	User[] getArrayUser() {
+		return usersRoom.toArray(new User[usersRoom.size()]);
+	}
+	
+	void joinUser(User user) {
+		usersRoom.add(user);
+	}
+	
+	void leftUser(User user) {
+		if(usersRoom.size() != 0)
+			usersRoom.remove(user);
+	}
+	
+	String getName() {
+		return name;
+	}
+}
+
 public class Server {
     // A pre-allocated buffer for the received data
     static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
@@ -52,7 +85,8 @@ public class Server {
   
   static HashMap<SocketChannel, User> userMap = new HashMap<SocketChannel, User>();
   static HashMap<String, User> nameMap = new HashMap<String, User>();
-
+  static private HashMap<String, Room> roomMap = new HashMap<String, Room>();
+  
   //Regex for command process
   static private final String nickRegex = "nick .+";
   static private final String joinRegex = "join .+";
@@ -291,5 +325,11 @@ public class Server {
 		  user.error();
 	  }
 	  System.out.println("MESSAGE: " + msg);
-  }   
+  }
+  
+  static private void sendMessage(SocketChannel sc, ChatMessage message) throws IOException {
+	  sc.write(encoder.encode(CharBuffer.wrap(message.toString())));
+  }
+  
+  
 }
