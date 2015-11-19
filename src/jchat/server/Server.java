@@ -16,21 +16,39 @@ class User {
 
 	SocketChannel sc;
 	State state;
+	String userName;
 	String curCommand;
 	Room room;
 
 	User(SocketChannel sc) {
 		this.sc = sc;
 		state = State.INIT;
+		this.userName = "";
 		curCommand = "";
 	}
+	
+	void setName(String userName) {
+		this.userName = userName;
+	}
+	
+	String getName() {
+		return userName;
+	}
 
-    void setState(State state){
+    void setState(State state) {
     	this.state = state;
     }
     
+    State getState() {
+    	return state;
+    } 
+    
     void setRoom(Room room) {
     	this.room = room;
+    }
+    
+    Room getRoom() {
+    	return room;
     }
 	
 	void error() {
@@ -85,7 +103,7 @@ public class Server {
   
   static HashMap<SocketChannel, User> userMap = new HashMap<SocketChannel, User>();
   static HashMap<String, User> nameMap = new HashMap<String, User>();
-  static private HashMap<String, Room> roomMap = new HashMap<String, Room>();
+  static HashMap<String, Room> roomMap = new HashMap<String, Room>();
   
   //Regex for command process
   static private final String nickRegex = "nick .+";
@@ -258,8 +276,8 @@ public class Server {
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap
-		  nameMap.put(nick, user);
+		  user.setName(nick);
+		  nameMap.put(nick, user);		  
 		  user.setState(User.State.OUTSIDE);
 		  //return OK
 	  }
@@ -270,6 +288,17 @@ public class Server {
 		  user.setState(User.State.INSIDE);
 		  //send OK to user
 		  //send JOINED nick to other users in room
+		  if(!roomMap.containsKey(roomName))
+			  roomMap.put(roomName, new Room(roomName));
+		  
+		  User[] userList = roomMap.get(roomName).getArrayUser();
+		  roomMap.get(roomName).joinUser(user);
+		  
+		  /*
+		  for(User u : userList)
+			  sendJoinedMessage(u, user.getUsername());
+			  */
+		  user.setRoom(roomMap.get(roomName));
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
@@ -280,7 +309,8 @@ public class Server {
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap
+		  nameMap.remove(user.userName);
+		  user.setName(nick);
 		  nameMap.put(nick, user);
 		  //return OK
 	  }
@@ -299,7 +329,8 @@ public class Server {
 			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
-		  //remove username from nameMap
+		  nameMap.remove(user.getName());
+		  user.setName(nick);
 		  nameMap.put(nick, user);
 		  //return OK
 		  //send NEWNICK nome_antigo nome to all
@@ -325,6 +356,21 @@ public class Server {
 		  user.error();
 	  }
 	  System.out.println("MESSAGE: " + msg);
+	  
+	  //TESTEEEEEEEEEEEEEEEEEEEEE
+	  System.out.println("Lista de nomes ate agora:");
+	  
+	// vamos obter uma lista de todas as chaves no HashMap
+	    Set chaves = nameMap.keySet();
+
+	    // vamos exibir os valores das chaves
+	    // primeiro obtemos um iterador
+	    Iterator i = chaves.iterator();
+
+	    // e finalmente exibimos os valores das chaves
+	    while(i.hasNext()){
+	      System.out.println("Nick = " + i.next());
+	    }
   }
   
   static private void sendMessage(SocketChannel sc, ChatMessage message) throws IOException {
