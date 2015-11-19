@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 import jchat.message.ChatMessage;
 import jchat.server.User.State;
 
-class User {
+class User implements Comparable<User> {
 	enum State {INSIDE, OUTSIDE, INIT};
 
 	SocketChannel sc;
@@ -25,6 +25,11 @@ class User {
 		state = State.INIT;
 		this.userName = "";
 		curCommand = "";
+	}
+	
+	@Override
+	public int compareTo(User other){
+		return this.userName.compareTo(other.userName);
 	}
 	
 	void setName(String userName) {
@@ -284,21 +289,19 @@ public class Server {
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(joinRegex, msg.substring(1))) {
 		  String roomName = msg.split(" ")[1];
-		  //join room
-		  user.setState(User.State.INSIDE);
-		  //send OK to user
-		  //send JOINED nick to other users in room
+		  
 		  if(!roomMap.containsKey(roomName))
 			  roomMap.put(roomName, new Room(roomName));
-		  
-		  User[] userList = roomMap.get(roomName).getArrayUser();
-		  roomMap.get(roomName).joinUser(user);
-		  
-		  /*
-		  for(User u : userList)
-			  sendJoinedMessage(u, user.getUsername());
-			  */
 		  user.setRoom(roomMap.get(roomName));
+		  user.setState(User.State.INSIDE);
+		  //send OK to user
+		  roomMap.get(roomName).joinUser(user);
+		  User[] userList = roomMap.get(roomName).getArrayUser();
+		  
+		  for(User u : userList) {
+			//send JOINED nick to other users in room
+		  }
+
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
@@ -337,45 +340,79 @@ public class Server {
 	  }
 	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
 			  && Pattern.matches(joinRegex, msg.substring(1))) {
-		  String room = msg.split(" ")[1];
-		  //send JOINED nome to all users in room
-		  //send LEFT nome to all users in old room
+		  String roomName = msg.split(" ")[1];
+		  //send OK to user
+		  if(!roomMap.containsKey(roomName))
+			  roomMap.put(roomName, new Room(roomName));
+		  User[] userList = roomMap.get(roomName).getArrayUser();
+		  roomMap.get(roomName).joinUser(user);
+		  
+		  for(User u : userList) {
+			  //send JOINED nome to all users in room  
+		  }
+	
+		  user.getRoom().leftUser(user);
+		  User[] oldUserList = user.getRoom().getArrayUser();
+		  
+		  for (User u : oldUserList) {
+			//send LEFT nome to all users in old room
+		  }
+		  
+		  if(user.getRoom().getArrayUser().length == 0)
+			  roomMap.remove(user.getRoom().getName());
+		  
+		  user.setRoom(roomMap.get(roomName));
 	  }
 	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
 			  && Pattern.matches(leaveRegex, msg.substring(1))) {		  
 		  user.setState(User.State.OUTSIDE);
-		  //send LEFT nome to all users in old room
+		  //send Ok to user
+		  
+		  user.getRoom().leftUser(user);
+		  User[] oldUserList = user.getRoom().getArrayUser();
+		  
+		  for (User u : oldUserList) {
+			//send LEFT nome to all users in old room
+		  }
+		  
+		  if(user.getRoom().getArrayUser().length == 0)
+			  roomMap.remove(user.getRoom().getName());
+
+		  user.setRoom(null);
 	  }
 	  else if (msg.startsWith("/") && Pattern.matches(byeRegex, msg.substring(1))) {		  
-		  //remove user from hashtables?
-		  //send LEFT nome to all users in old room
+		  user.getRoom().leftUser(user);
+		  User[] oldUserList = user.getRoom().getArrayUser();
+		  
+		  for (User u : oldUserList) {
+			//send LEFT nome to all users in old room
+		  }
+		  
+		  if(user.getRoom().getArrayUser().length == 0)
+			  roomMap.remove(user.getRoom().getName());
+		  user.setRoom(null);
 		  //send BYE to user
+		  //remove user from hashtables?
+		  //close connection:
+		  
+		  try {
+		      System.out.println("Closing connection to " + user.sc);
+		      user.sc.close();
+		    } catch (IOException ie) {
+		      System.err.println("Error closing socket " + user.sc + ": " + ie);
+		    }
+		  userMap.remove(user.sc);
+		  nameMap.remove(user.getName());
+		  user.exitRoom();
 	  }
 	  // caso para: user.state == User.State.INSIDE && user -> close connection ?
 	  else {		  
 		  user.error();
 	  }
-	  System.out.println("MESSAGE: " + msg);
-	  
-	  //TESTEEEEEEEEEEEEEEEEEEEEE
-	  System.out.println("Lista de nomes ate agora:");
-	  
-	// vamos obter uma lista de todas as chaves no HashMap
-	    Set chaves = nameMap.keySet();
-
-	    // vamos exibir os valores das chaves
-	    // primeiro obtemos um iterador
-	    Iterator i = chaves.iterator();
-
-	    // e finalmente exibimos os valores das chaves
-	    while(i.hasNext()){
-	      System.out.println("Nick = " + i.next());
-	    }
+	  System.out.println("MESSAGE: " + msg);	
   }
   
   static private void sendMessage(SocketChannel sc, ChatMessage message) throws IOException {
 	  sc.write(encoder.encode(CharBuffer.wrap(message.toString())));
   }
-  
-  
 }
