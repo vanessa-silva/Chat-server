@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 import jchat.message.ChatMessage;
+import jchat.message.ChatMessage.MessageType;
 import jchat.server.User.State;
 
 class User implements Comparable<User> {
@@ -55,15 +56,10 @@ class User implements Comparable<User> {
     Room getRoom() {
     	return room;
     }
-	
-	void error() {
-		try {
-			sc.write(ByteBuffer.wrap("ERROR\n".getBytes()));
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
+    
+    SocketChannel getSocket(){
+    	return sc;
+    }
 	
 	void exitRoom() {
 		
@@ -271,11 +267,13 @@ public class Server {
     return true;
   }
  
-  static void handleMessage(User user, String msg) {	  	 
+  static void handleMessage(User user, String msg) throws IOException {	  	 
 	  if (user.state == User.State.INIT && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && nameMap.containsKey(msg.split(" ")[1])) {
-		  user.error();
+		  String nick = msg.split(" ")[1];
+		  //ERROR
+		  sendErrorMessage(user, "There is already a user with nick "+ nick);
 	  }
 	  else if (user.state == User.State.INIT && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
@@ -295,18 +293,22 @@ public class Server {
 		  user.setRoom(roomMap.get(roomName));
 		  user.setState(User.State.INSIDE);
 		  //send OK to user
+		  sendOkMessage(user);
 		  roomMap.get(roomName).joinUser(user);
 		  User[] userList = roomMap.get(roomName).getArrayUser();
 		  
 		  for(User u : userList) {
 			//send JOINED nick to other users in room
+			  sendJoinedMessage(u, user.getName());
 		  }
 
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && nameMap.containsKey(msg.split(" ")[1])) {
+		  String nick = msg.split(" ")[1];
 		  //return ERROR
+		  sendErrorMessage(user, "There is already a user with nick "+ nick);
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
@@ -319,43 +321,64 @@ public class Server {
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && (msg.startsWith("//") || !msg.startsWith("/"))) {
-		  String message = msg.substring(1);
-		  //send MESSAGE name msg to all users in room
+		  String message = msg.substring(0);
+		  
+		  Room userRoom = user.getRoom();
+	      User[] userList = userRoom.getArrayUser();
+
+	      for (User u : userList) {
+	    	  //send MESSAGE name msg to all users in room
+	    	  sendMessageMessage(u, user.getName(), message);
+	      }
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
 			  && nameMap.containsKey(msg.split(" ")[1])) {
 		  String nick = msg.split(" ")[1];
 		  //ERROR
+		  sendErrorMessage(user, "There is already a user with nick "+ nick);
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && msg.startsWith("/") && Pattern.matches(nickRegex, msg.substring(1))
 			  && !nameMap.containsKey(msg.split(" ")[1])) {
+		  String oldNick = user.getName();
 		  String nick = msg.split(" ")[1];
 		  nameMap.remove(user.getName());
 		  user.setName(nick);
 		  nameMap.put(nick, user);
-		  //return OK
-		  //send NEWNICK nome_antigo nome to all
+		  //return OK to user
+		  sendOkMessage(user);
+		  
+		  Room userRoom = user.getRoom();
+	      User[] userList = userRoom.getArrayUser();
+
+	      for (User u : userList) {
+	    	  if (u != user) {
+	    		  sendNewnickMessage(u, oldNick, nick);
+	          }
+	      }
 	  }
 	  else if (user.state == User.State.INSIDE && msg.startsWith("/")
 			  && Pattern.matches(joinRegex, msg.substring(1))) {
 		  String roomName = msg.split(" ")[1];
 		  //send OK to user
+		  sendOkMessage(user);
 		  if(!roomMap.containsKey(roomName))
 			  roomMap.put(roomName, new Room(roomName));
 		  User[] userList = roomMap.get(roomName).getArrayUser();
 		  roomMap.get(roomName).joinUser(user);
 		  
 		  for(User u : userList) {
-			  //send JOINED nome to all users in room  
+			  //send JOINED nick to all users in room
+			  sendJoinedMessage(u, user.getName());
 		  }
 	
 		  user.getRoom().leftUser(user);
 		  User[] oldUserList = user.getRoom().getArrayUser();
 		  
 		  for (User u : oldUserList) {
-			//send LEFT nome to all users in old room
+			  //send LEFT nome to all users in old room
+			  sendLeftMessage(u, user.getName());
 		  }
 		  
 		  if(user.getRoom().getArrayUser().length == 0)
@@ -367,12 +390,13 @@ public class Server {
 			  && Pattern.matches(leaveRegex, msg.substring(1))) {		  
 		  user.setState(User.State.OUTSIDE);
 		  //send Ok to user
-		  
+		  sendOkMessage(user);
 		  user.getRoom().leftUser(user);
 		  User[] oldUserList = user.getRoom().getArrayUser();
 		  
 		  for (User u : oldUserList) {
-			//send LEFT nome to all users in old room
+			  //send LEFT name to all users in old room
+			  sendLeftMessage(u, user.getName());
 		  }
 		  
 		  if(user.getRoom().getArrayUser().length == 0)
@@ -381,20 +405,26 @@ public class Server {
 		  user.setRoom(null);
 	  }
 	  else if (msg.startsWith("/") && Pattern.matches(byeRegex, msg.substring(1))) {		  
-		  user.getRoom().leftUser(user);
-		  User[] oldUserList = user.getRoom().getArrayUser();
+		  if (user.state == User.State.INSIDE) {
+			  user.getRoom().leftUser(user);
+			  User[] oldUserList = user.getRoom().getArrayUser();
 		  
-		  for (User u : oldUserList) {
-			//send LEFT nome to all users in old room
+			  for (User u : oldUserList) {
+				  //send LEFT name to all users in old room
+				  sendLeftMessage(u, user.getName());
+			  }
+		  
+			  if(user.getRoom().getArrayUser().length == 0)
+				  roomMap.remove(user.getRoom().getName());
 		  }
 		  
-		  if(user.getRoom().getArrayUser().length == 0)
-			  roomMap.remove(user.getRoom().getName());
 		  user.setRoom(null);
+		  
 		  //send BYE to user
+		  sendByeMessage(user);
+		  
 		  //remove user from hashtables?
 		  //close connection:
-		  
 		  try {
 		      System.out.println("Closing connection to " + user.sc);
 		      user.sc.close();
@@ -405,14 +435,56 @@ public class Server {
 		  nameMap.remove(user.getName());
 		  user.exitRoom();
 	  }
-	  // caso para: user.state == User.State.INSIDE && user -> close connection ?
 	  else {		  
-		  user.error();
+		  sendErrorMessage(user, "Command not supported");
 	  }
 	  System.out.println("MESSAGE: " + msg);	
   }
   
+  //To send a message
   static private void sendMessage(SocketChannel sc, ChatMessage message) throws IOException {
 	  sc.write(encoder.encode(CharBuffer.wrap(message.toString())));
+  }
+  
+  //Send ok message
+  static private void sendOkMessage(User receiver) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.OK);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send error message
+  static private void sendErrorMessage(User receiver, String errorMessage) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.ERROR, errorMessage);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send joined message
+  static private void sendJoinedMessage(User receiver, String joinNick) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.JOINED, joinNick);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send message message
+  static private void sendMessageMessage(User receiver, String sender, String messageValue) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.MESSAGE, sender, messageValue);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send newnick message
+  static private void sendNewnickMessage(User receiver, String oldNick, String newNick) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.NEWNICK, oldNick, newNick);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  // Send left message
+  static private void sendLeftMessage(User receiver, String leftNick) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.LEFT, leftNick);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send bye message
+  static private void sendByeMessage(User receiver) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.BYE);
+	  sendMessage(receiver.getSocket(), message);
   }
 }

@@ -2,12 +2,12 @@ package jchat.message;
 
 import java.util.regex.*;
 
-enum MessageType {
-    OK, ERROR, MESSAGE, NEWNICK, JOINED, LEFT, BYE, PRIVATE
-}
-
 // Message class
 public class ChatMessage {
+	public enum MessageType {
+	    OK, ERROR, MESSAGE, NEWNICK, JOINED, LEFT, BYE, PRIVATE
+	}
+	
     private MessageType type;
     private String message1;
     private String message2;
@@ -46,7 +46,7 @@ public class ChatMessage {
     }
 
     public String toString() {
-	return this.toString(false);
+	return this.toString(true);
     }
 
     public String toString(Boolean pretty) {
