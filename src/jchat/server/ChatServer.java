@@ -93,7 +93,7 @@ class Room {
 	}
 }
 
-public class Server {
+public class ChatServer {
     // A pre-allocated buffer for the received data
     static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
 
@@ -299,7 +299,9 @@ public class Server {
 		  
 		  for(User u : userList) {
 			//send JOINED nick to other users in room
-			  sendJoinedMessage(u, user.getName());
+			  if (u != user) {
+				  sendJoinedMessage(u, user.getName());
+			  }
 		  }
 
 	  }
@@ -321,7 +323,11 @@ public class Server {
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && (msg.startsWith("//") || !msg.startsWith("/"))) {
-		  String message = msg.substring(0);
+		  String message;
+		  if(!msg.startsWith("/"))
+			  message = msg.substring(0);
+		  else
+			  message = msg.substring(1);
 		  
 		  Room userRoom = user.getRoom();
 	      User[] userList = userRoom.getArrayUser();
@@ -370,7 +376,9 @@ public class Server {
 		  
 		  for(User u : userList) {
 			  //send JOINED nick to all users in room
-			  sendJoinedMessage(u, user.getName());
+			  if (u != user) {
+				  sendJoinedMessage(u, user.getName());
+			  }
 		  }
 	
 		  user.getRoom().leftUser(user);
@@ -435,6 +443,20 @@ public class Server {
 		  nameMap.remove(user.getName());
 		  user.exitRoom();
 	  }
+	  else if (user.state != User.State.INIT && msg.startsWith("/")
+			  && Pattern.matches(privateRegex, msg.substring(1))) {
+		  String name = msg.split(" ")[1];
+		  int length = 7 + name.length();
+		  String message = msg.substring(length);
+		  
+		  if (nameMap.containsKey(name)) {
+			  sendOkMessage(user);
+			  sendPrivateMessage(nameMap.get(name), user.getName(), message);
+		  }
+		  else {
+			  sendErrorMessage(user, name + ": No such nickname online");
+		  }
+	  }
 	  else {		  
 		  sendErrorMessage(user, "Command not supported");
 	  }
@@ -485,6 +507,12 @@ public class Server {
   //Send bye message
   static private void sendByeMessage(User receiver) throws IOException {
 	  ChatMessage message = new ChatMessage(MessageType.BYE);
+	  sendMessage(receiver.getSocket(), message);
+  }
+  
+  //Send private message
+  static private void sendPrivateMessage(User receiver, String sender, String messageValue) throws IOException {
+	  ChatMessage message = new ChatMessage(MessageType.PRIVATE, sender, messageValue);
 	  sendMessage(receiver.getSocket(), message);
   }
 }
