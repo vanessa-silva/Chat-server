@@ -1,6 +1,6 @@
 CC=javac
 NAME=jchat
-SERVER=Server
+SERVER=ChatServer
 CLIENT=ChatClient
 BINDIR=bin
 LIBDIR=lib

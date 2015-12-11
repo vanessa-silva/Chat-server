@@ -62,7 +62,19 @@ class User implements Comparable<User> {
     }
 	
 	void exitRoom() {
-		
+		room.leftUser(userName);
+		User[] userList = room.getArrayUser();
+
+		for(User u : userList) {
+			try {
+				ChatServer.sendLeftMessage(u, userName);
+			} catch (IOException ie) {
+				System.err.println("Error sending left message: " + ie);
+			}
+		}
+
+		if (userList.length == 0)
+			ChatServer.roomMap.remove(room.getName());
 	}
 }
 
@@ -83,7 +95,8 @@ class Room {
 		usersRoom.add(user);
 	}
 	
-	void leftUser(User user) {
+	void leftUser(String username) {
+		User user = ChatServer.nameMap.get(username);
 		if(usersRoom.size() != 0)
 			usersRoom.remove(user);
 	}
@@ -193,9 +206,15 @@ public class ChatServer {
         			  key.cancel();      
         			  
             		  //Delete user
-        			  userMap.remove(sc);
-            		  if (userMap.containsKey(sc))
-            			  userMap.get(sc).exitRoom();
+            		  if (userMap.containsKey(sc)){
+            			  User user = userMap.get(sc);
+            			  
+            			  if (user.getState() == State.INSIDE)
+            				  userMap.get(sc).exitRoom();
+            			  
+            			  nameMap.remove(user.getName());
+            			  userMap.remove(sc);
+            		  }
             		  
         			  Socket s = null;
         			  try {
@@ -213,9 +232,15 @@ public class ChatServer {
         		  key.cancel();
         		  
         		  //Delete user
-        		  if (userMap.containsKey(sc))
-        			  userMap.get(sc).exitRoom();
-        		  userMap.remove(sc);
+        		  if (userMap.containsKey(sc)){
+        			  User user = userMap.get(sc);
+        			  
+        			  if (user.getState() == State.INSIDE)
+        				  userMap.get(sc).exitRoom();
+        			  
+        			  nameMap.remove(user.getName());
+        			  userMap.remove(sc);
+        		  }
 
         		  try {
         			  sc.close();
@@ -381,7 +406,7 @@ public class ChatServer {
 			  }
 		  }
 	
-		  user.getRoom().leftUser(user);
+		  user.getRoom().leftUser(user.getName());
 		  User[] oldUserList = user.getRoom().getArrayUser();
 		  
 		  for (User u : oldUserList) {
@@ -399,7 +424,7 @@ public class ChatServer {
 		  user.setState(User.State.OUTSIDE);
 		  //send Ok to user
 		  sendOkMessage(user);
-		  user.getRoom().leftUser(user);
+		  user.getRoom().leftUser(user.getName());
 		  User[] oldUserList = user.getRoom().getArrayUser();
 		  
 		  for (User u : oldUserList) {
@@ -413,19 +438,9 @@ public class ChatServer {
 		  user.setRoom(null);
 	  }
 	  else if (msg.startsWith("/") && Pattern.matches(byeRegex, msg.substring(1))) {		  
-		  if (user.state == User.State.INSIDE) {
-			  user.getRoom().leftUser(user);
-			  User[] oldUserList = user.getRoom().getArrayUser();
-		  
-			  for (User u : oldUserList) {
-				  //send LEFT name to all users in old room
-				  sendLeftMessage(u, user.getName());
-			  }
-		  
-			  if(user.getRoom().getArrayUser().length == 0)
-				  roomMap.remove(user.getRoom().getName());
-		  }
-		  
+		  if (user.state == User.State.INSIDE) 
+			  user.exitRoom();
+			  
 		  user.setRoom(null);
 		  
 		  //send BYE to user
@@ -434,14 +449,14 @@ public class ChatServer {
 		  //remove user from hashtables?
 		  //close connection:
 		  try {
-		      System.out.println("Closing connection to " + user.sc);
-		      user.sc.close();
-		    } catch (IOException ie) {
-		      System.err.println("Error closing socket " + user.sc + ": " + ie);
-		    }
+			  System.out.println("Closing connection to " + user.sc);
+			  user.sc.close();
+		  } catch (IOException ie) {
+			  System.err.println("Error closing socket " + user.sc + ": " + ie);
+		  }
+		  
 		  userMap.remove(user.sc);
 		  nameMap.remove(user.getName());
-		  user.exitRoom();
 	  }
 	  else if (user.state != User.State.INIT && msg.startsWith("/")
 			  && Pattern.matches(privateRegex, msg.substring(1))) {
@@ -460,7 +475,7 @@ public class ChatServer {
 	  else {		  
 		  sendErrorMessage(user, "Command not supported");
 	  }
-	  System.out.println("MESSAGE: " + msg);	
+	  System.out.println("MESSAGE: " + msg);
   }
   
   //To send a message
@@ -499,7 +514,7 @@ public class ChatServer {
   }
   
   // Send left message
-  static private void sendLeftMessage(User receiver, String leftNick) throws IOException {
+  static void sendLeftMessage(User receiver, String leftNick) throws IOException {
 	  ChatMessage message = new ChatMessage(MessageType.LEFT, leftNick);
 	  sendMessage(receiver.getSocket(), message);
   }
