@@ -124,7 +124,7 @@ public class ChatMessage {
 	    type = MessageType.OK;
 	} else if (Pattern.matches(errorRegex, text.split(" ")[0])) {
 	    type = MessageType.ERROR;
-	    message1 = text.substring(6);
+	    //message1 = text.substring(6);
 	} else if (Pattern.matches(messageRegex, text)) {
 	    type = MessageType.MESSAGE;
 	    message1 = text.split(" ")[1];
