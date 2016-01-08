@@ -308,6 +308,7 @@ public class ChatServer {
 		  nameMap.put(nick, user);		  
 		  user.setState(User.State.OUTSIDE);
 		  //return OK
+		  sendOkMessage(user);
 	  }
 	  else if (user.state == User.State.OUTSIDE && msg.startsWith("/")
 			  && Pattern.matches(joinRegex, msg.substring(1))) {
@@ -345,6 +346,7 @@ public class ChatServer {
 		  user.setName(nick);
 		  nameMap.put(nick, user);
 		  //return OK
+		  sendOkMessage(user);
 	  }
 	  else if (user.state == User.State.INSIDE 
 			  && (msg.startsWith("//") || !msg.startsWith("/"))) {
@@ -480,7 +482,7 @@ public class ChatServer {
   
   //To send a message
   static private void sendMessage(SocketChannel sc, ChatMessage message) throws IOException {
-	  sc.write(encoder.encode(CharBuffer.wrap(message.toString())));
+	  sc.write(encoder.encode(CharBuffer.wrap(message.toString(false))));
   }
   
   //Send ok message
