@@ -5,14 +5,15 @@ import java.net.*;
 import java.nio.CharBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
+//import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
-import java.util.*;
+//import java.util.*;
 import java.awt.*;
 import java.awt.event.*;
 
 import javax.swing.*;
 
+import jchat.message.*;
 
 public class ChatClient {
 
@@ -29,13 +30,13 @@ public class ChatClient {
     
     // Decoder and enconder for transmitting text
     private final Charset charset = Charset.forName("UTF8");
-    private final CharsetDecoder decoder = charset.newDecoder();
+    //private final CharsetDecoder decoder = charset.newDecoder();
     private final CharsetEncoder encoder = charset.newEncoder();
           
     // Método a usar para acrescentar uma string à caixa de texto
     // * NÃO MODIFICAR *
     public void printMessage(final String message) {
-        chatArea.append(message);
+        chatArea.append(ChatMessage.parseString(message).toString(true));
     }
 
     

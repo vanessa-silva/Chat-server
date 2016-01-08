@@ -292,7 +292,8 @@ public class ChatServer {
     return true;
   }
  
-  static void handleMessage(User user, String msg) throws IOException {	  	 
+  static void handleMessage(User user, String msg) throws IOException {
+	  msg = msg.trim();
 	  if (user.state == User.State.INIT && msg.startsWith("/")
 			  && Pattern.matches(nickRegex, msg.substring(1))
 			  && nameMap.containsKey(msg.split(" ")[1])) {

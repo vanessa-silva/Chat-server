@@ -20,7 +20,7 @@ public class ChatMessage {
     static private final String joinedRegex = "JOINED .+";
     static private final String leftRegex = "LEFT .+";
     static private final String byeRegex = "BYE";
-    static private final String privateRegex = "PRIV .+ .+";
+    static private final String privateRegex = "PRIVATE";
 
 
     public ChatMessage(MessageType type) {
@@ -64,7 +64,7 @@ public class ChatMessage {
 	    if (pretty) {
 		output = "Error: " + this.message1;
 	    } else {
-		output = "ERROR";
+		output = "ERROR " + this.message1;
 	    }
 	    break;
 	case MESSAGE:
@@ -118,7 +118,7 @@ public class ChatMessage {
 	MessageType type;
 	String message1 = "";
 	String message2 = "";
-
+	text = text.trim();
 	if (Pattern.matches(okRegex, text)) {
 	    type = MessageType.OK;
 	} else if (Pattern.matches(errorRegex, text)) {
@@ -140,7 +140,7 @@ public class ChatMessage {
 	    message1 = text.split(" ")[1];
 	} else if (Pattern.matches(byeRegex, text)) {
 	    type = MessageType.BYE;
-	} else if (Pattern.matches(privateRegex, text)) {
+	} else if (Pattern.matches(privateRegex, text.split(" ")[0])) {
 	    type = MessageType.PRIVATE;
 	    message1 = text.split(" ")[1];
 	    int position = text.substring(7).indexOf(message1);
